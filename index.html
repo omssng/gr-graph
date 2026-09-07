@@ -2,19 +2,21 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Граф зависимостей — градостроительные проверки</title>
 <style>
   :root{
     --bg:#f4f5f7; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#dfe3ea;
     --accent:#2f6fed; --shadow:0 1px 3px rgba(20,25,40,.12),0 6px 24px rgba(20,25,40,.08);
     --nodefill:#5b6675; --nodeink:#ffffff;
+    --chipbg:#e7ebf3; --chipbd:#c2ccdd; --chipink:#3a465c;
   }
   @media (prefers-color-scheme:dark){
     :root{ --bg:#12151c; --panel:#1a1f29; --ink:#e6e9ef; --muted:#9aa3b2; --line:#2b323f;
       --accent:#5b8cff; --shadow:0 1px 3px rgba(0,0,0,.5),0 8px 30px rgba(0,0,0,.4);
-      --nodefill:#3a4351; --nodeink:#e9ecf2; }
+      --nodefill:#3a4351; --nodeink:#e9ecf2;
+      --chipbg:#293040; --chipbd:#3b4557; --chipink:#c3cde0; }
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
@@ -23,7 +25,17 @@
   aside{width:296px;flex:0 0 296px;height:100%;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
   aside h1{font-size:13px;margin:0;padding:14px 16px 10px;letter-spacing:.02em}
   aside h1 small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:3px}
-  .scroll{overflow:auto;padding:4px 16px 24px;flex:1}
+  .scroll{overflow-y:auto;overflow-x:hidden;padding:4px 16px 24px;flex:1;
+    scrollbar-width:thin;scrollbar-color:transparent transparent}
+  .scroll:hover{scrollbar-color:var(--line) transparent}
+  .scroll::-webkit-scrollbar{width:6px;height:0}
+  .scroll::-webkit-scrollbar-track{background:transparent}
+  .scroll::-webkit-scrollbar-thumb{background:transparent;border-radius:6px}
+  .scroll:hover::-webkit-scrollbar-thumb{background:var(--line)}
+  #detail{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  #detail::-webkit-scrollbar{width:6px}
+  #detail::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  #detail::-webkit-scrollbar-track{background:transparent}
   fieldset{border:0;border-top:1px solid var(--line);margin:0;padding:12px 0 4px}
   legend{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:10px;padding:0;margin-bottom:6px}
   label.row{display:flex;align-items:flex-start;gap:7px;padding:3px 0;cursor:pointer}
@@ -34,8 +46,8 @@
   .seg.sm button{font-size:11px;padding:5px 3px}
   .chips{display:flex;flex-wrap:wrap;gap:5px}
   .chip{border:1px solid var(--line);border-radius:999px;padding:3px 9px;cursor:pointer;color:var(--muted);user-select:none;font-size:12px}
-  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
-  .chip.src.on{color:#fff}
+  .chip.on{background:var(--chipbg);border-color:var(--chipbd);color:var(--chipink);font-weight:600}
+  .chip.src.on{color:#fff;font-weight:400}
   .minibtn{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit;font-size:11px;margin-top:6px}
   input[type=search]{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
   main{flex:1;position:relative;height:100%}
@@ -90,8 +102,8 @@
     <fieldset>
       <legend>Что показываем</legend>
       <div class="seg" id="mode">
-        <button data-m="data" class="on">данные&nbsp;→&nbsp;проверки</button>
-        <button data-m="checks">проверки&nbsp;→&nbsp;проверки</button>
+        <button data-m="data" class="on">данные →<br>проверки</button>
+        <button data-m="checks">проверки →<br>проверки</button>
       </div>
       <p class="hint" id="modeHint"></p>
     </fieldset>
@@ -107,10 +119,10 @@
       <p class="hint">Двойной клик по источнику на полотне — оставить только его и зависящие проверки.</p>
     </fieldset>
 
-    <fieldset><legend>Стадия</legend>
+    <fieldset><legend>Этап</legend>
       <div class="chips" id="fStage">
-        <span class="chip on" data-v="1">Стадия 1</span><span class="chip on" data-v="2">Стадия 2</span>
-        <span class="chip on" data-v="3">Стадия 3</span><span class="chip on" data-v="0">без стадии</span>
+        <span class="chip on" data-v="1">Этап&nbsp;I</span><span class="chip on" data-v="2">Этап&nbsp;II</span>
+        <span class="chip on" data-v="3">Этап&nbsp;III</span><span class="chip on" data-v="0">без этапа</span>
       </div></fieldset>
 
     <fieldset><legend>Готовность</legend>
@@ -189,12 +201,12 @@
 <script src="vendor/layout-base.min.js"></script>
 <script src="vendor/cose-base.min.js"></script>
 <script src="vendor/cytoscape-fcose.min.js"></script>
-<script src="data.js?v=2"></script>
+<script src="data.js?v=3"></script>
 <script>
 (function(){
 "use strict";
 var cyEl=document.getElementById('cy');
-if(!window.GRAPH_DATA){cyEl.innerHTML='<p style="padding:20px">Нет данные.js — запустите <code>python build.py</code>.</p>';return;}
+if(!window.GRAPH_DATA){cyEl.innerHTML='<p style="padding:20px">Нет данные.js — проверьте data.js.</p>';return;}
 try{cytoscape.use(cytoscapeDagre);}catch(e){}
 try{cytoscape.use(cytoscapeFcose);}catch(e){}
 var G=window.GRAPH_DATA;
@@ -735,6 +747,7 @@ function setView(v){
 /* ---- панель ---- */
 var byId={}; G.nodes.forEach(n=>byId[n.data.id]=n.data);
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function rom(n){return {1:'I',2:'II',3:'III'}[n]||String(n);}
 function openDetail(d){
   document.getElementById('detail').classList.add('show');
   document.getElementById('dId').textContent=d.label+(d.caption?('  ·  '+d.caption):'');
@@ -749,7 +762,7 @@ function openDetail(d){
   kv('раздел',(d.pril_short||'')+(d.prilozhenie?'  ('+d.prilozhenie+')':''));
   if(d.prilozhenie_name){var e=document.createElement('div');e.className='kv';e.style.cssText='color:var(--muted);font-size:11px';e.textContent=d.prilozhenie_name;b.appendChild(e);}
   kv('№ критерия',d.nomer_kriteriya); kv('формат',d.format); kv('тип',d.tip);
-  kv('стадия',(d.stages&&d.stages.length)?d.stages.join(', '):'—'); kv('готовность',d.gotovnost);
+  kv('этап',(d.stages&&d.stages.length)?d.stages.map(rom).join(', '):'—'); kv('готовность',d.gotovnost);
   kv('аналитика',(d.analitika||'—')+(d.otv_analitik?' · '+d.otv_analitik:''));
   kv('разработка',(d.razrabotka||'—')+(d.otv_razrab?' · '+d.otv_razrab:''));
   kv('срок',d.srok);
@@ -821,7 +834,7 @@ document.getElementById('solo').onclick=function(){soloSrc=null;selId=null;this.
 document.querySelectorAll('#mode button').forEach(function(btn){
   btn.onclick=function(){document.querySelectorAll('#mode button').forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');mode=btn.dataset.m;soloSrc=null;selId=null;document.getElementById('solo').style.display='none';
-    document.getElementById('modeHint').textContent=MODE_HINT[mode];apply();};
+    document.getElementById('modeHint').textContent=MODE_HINT[mode];renderLegend();apply();};
 });
 document.getElementById('modeHint').textContent=MODE_HINT[mode];
 document.querySelectorAll('#viewSel button').forEach(function(btn){
@@ -882,25 +895,30 @@ document.getElementById('q').addEventListener('input',function(e){
   },200);
 });
 
-(function(){
-  var L=document.getElementById('legend');
+function renderLegend(){
+  var L=document.getElementById('legend'), min=L.classList.contains('min');
   var grp=['заявление','тэп','гпзу','геоданные','ifc','модели','документы','внешние','производные']
     .map(k=>'<span class="k"><span class="sw" style="background:'+GROUP_COL[k]+'"></span>'+k+'</span>').join('');
-  L.innerHTML='<span class="tgl" id="legTgl">условные обозначения ▾</span><div class="body">'+
-    '<b>Проверки</b><span class="k"><span class="sw" style="background:var(--nodefill)"></span>ГР-проверка</span>'+
-    '<span class="k">✓&nbsp;— уже реализована кодом</span>'+
-    '<span class="k"><span class="sw" style="background:transparent;border:2px solid #f97316"></span>предпроверка</span>'+
-    '<b>Источники — по группе</b>'+grp+
-    '<b>Режим «данные → проверки»</b>'+
-    '<span class="k">пунктирная рамка — раздел 1423-ПП</span>'+
-    '<span class="k">связи (источник ▸ проверка) — по клику на узел</span>'+
-    '<b>Связи проверок (режим «проверки → проверки»)</b>'+
-    '<span class="k"><span class="sw" style="background:#ef4444"></span>результат</span>'+
-    '<span class="k"><span class="sw" style="background:#f97316"></span>предпроверка</span>'+
-    '<span class="k"><span class="sw" style="background:#0d9488"></span>переиспользование</span>'+
-    '<span class="k"><span class="sw" style="background:#94a3b8"></span>вариант / родственная</span></div>';
-  document.getElementById('legTgl').onclick=function(){L.classList.toggle('min');this.textContent='условные обозначения '+(L.classList.contains('min')?'▸':'▾');};
-})();
+  var h='<span class="tgl" id="legTgl">условные обозначения '+(min?'▸':'▾')+'</span><div class="body">'+
+    '<b>Проверки</b>'+
+    '<span class="k">✓&nbsp;— реализована кодом</span>'+
+    '<span class="k"><span class="sw" style="background:transparent;border:2px solid #f97316"></span>предпроверка</span>';
+  if(mode==='data'){
+    h+='<b>Источники — по группе</b>'+grp+
+       '<b>Режим «данные → проверки»</b>'+
+       '<span class="k">пунктирная рамка — раздел 1423-ПП</span>'+
+       '<span class="k">связи (источник ▸ проверка) — по клику на узел</span>';
+  } else {
+    h+='<b>Связи проверок</b>'+
+       '<span class="k"><span class="sw" style="background:#ef4444"></span>результат</span>'+
+       '<span class="k"><span class="sw" style="background:#f97316"></span>предпроверка</span>'+
+       '<span class="k"><span class="sw" style="background:#0d9488"></span>переиспользование</span>'+
+       '<span class="k"><span class="sw" style="background:#94a3b8"></span>вариант / родственная</span>';
+  }
+  L.innerHTML=h+'</div>';
+  document.getElementById('legTgl').onclick=function(){ L.classList.toggle('min'); renderLegend(); };
+}
+renderLegend();
 
 paintSrcChips(); sizes(); apply();
 setTimeout(function(){ cy.resize(); cy.fit(cy.elements().filter(el=>el.style('display')!=='none'),45); },120);
