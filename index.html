@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Граф зависимостей — градостроительные проверки</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#dfe3ea;
+    --accent:#2f6fed; --shadow:0 1px 3px rgba(20,25,40,.12),0 6px 24px rgba(20,25,40,.08);
+    --nodefill:#5b6675; --nodeink:#ffffff;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#12151c; --panel:#1a1f29; --ink:#e6e9ef; --muted:#9aa3b2; --line:#2b323f;
+      --accent:#5b8cff; --shadow:0 1px 3px rgba(0,0,0,.5),0 8px 30px rgba(0,0,0,.4);
+      --nodefill:#3a4351; --nodeink:#e9ecf2; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+       display:flex;overflow:hidden}
+  aside{width:296px;flex:0 0 296px;height:100%;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
+  aside h1{font-size:13px;margin:0;padding:14px 16px 10px;letter-spacing:.02em}
+  aside h1 small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:3px}
+  .scroll{overflow:auto;padding:4px 16px 24px;flex:1}
+  fieldset{border:0;border-top:1px solid var(--line);margin:0;padding:12px 0 4px}
+  legend{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:10px;padding:0;margin-bottom:6px}
+  label.row{display:flex;align-items:flex-start;gap:7px;padding:3px 0;cursor:pointer}
+  label.row input{margin:2px 0 0}
+  .seg{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px}
+  .seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:7px 4px;border-radius:6px;cursor:pointer;font:inherit;font-size:12px}
+  .seg button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow);font-weight:600}
+  .seg.sm button{font-size:11px;padding:5px 3px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:3px 9px;cursor:pointer;color:var(--muted);user-select:none;font-size:12px}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip.src.on{color:#fff}
+  .minibtn{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit;font-size:11px;margin-top:6px}
+  input[type=search]{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+  main{flex:1;position:relative;height:100%}
+  #cy{position:absolute;inset:0}
+  #chord{position:absolute;inset:0;display:none;overflow:hidden}
+  #chord svg{width:100%;height:100%;display:block;cursor:grab}
+  #chord text{font-family:inherit;fill:var(--ink)}
+  #chord .rib{fill:none;stroke-linecap:round}
+  #chord .seclabel{font-weight:700;fill:var(--muted);letter-spacing:.02em}
+  .float{position:absolute;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+  #legend{left:14px;bottom:14px;padding:8px 12px;max-width:340px}
+  #legend.min .body{display:none}
+  #legend .tgl{cursor:pointer;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);user-select:none}
+  #legend b{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin:6px 0 5px}
+  #legend .k{display:inline-flex;align-items:center;gap:6px;margin:2px 10px 2px 0;white-space:nowrap}
+  #legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+  #toolbar{right:14px;top:14px;padding:7px 9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 28px)}
+  #toolbar>button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;padding:6px 10px;cursor:pointer;font:inherit}
+  #toolbar>button:hover{border-color:var(--accent)}
+  #toolbar .tbdiv{width:1px;align-self:stretch;background:var(--line)}
+  #toolbar .tbchk{display:flex;align-items:center;gap:5px;color:var(--muted);cursor:pointer;font-size:12px;white-space:nowrap}
+  #toolbar .tbchk input{margin:0}
+  #detail{right:14px;top:112px;width:344px;max-height:calc(100% - 138px);overflow:auto;padding:0;display:none}
+  #detail.show{display:block}
+  #detail .hd{padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+  #detail .hd .id{font-size:15px;font-weight:700}
+  #detail .hd .x{float:right;cursor:pointer;color:var(--muted);font-size:16px;line-height:1}
+  #detail .bd{padding:12px 14px}
+  #detail .bd h4{margin:14px 0 4px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  #detail .bd h4:first-child{margin-top:0}
+  #detail .kv{margin:2px 0}
+  #detail .kv span{color:var(--muted)}
+  #detail .tag{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin:2px 4px 2px 0}
+  #detail a.file{display:inline-block;margin-top:6px;color:var(--accent);word-break:break-all}
+  .dep{padding:5px 0;border-top:1px dashed var(--line)}
+  .dep b{cursor:pointer;color:var(--accent)}
+  .dep .t{font-size:11px;color:var(--muted)}
+  #count{position:absolute;left:14px;top:14px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;z-index:5;box-shadow:var(--shadow)}
+  #solo{position:absolute;left:14px;top:46px;display:none;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:5px 10px;z-index:6;cursor:pointer;box-shadow:var(--shadow);font:inherit;font-size:12px}
+  .hint{color:var(--muted);font-size:11px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Граф зависимостей ГР-проверок <small id="meta">…</small></h1>
+  <div class="scroll">
+    <fieldset style="border-top:0;padding-top:2px">
+      <legend>Поиск</legend>
+      <input type="search" id="q" placeholder="ГР-53, красные линии, парковк…">
+    </fieldset>
+
+    <fieldset>
+      <legend>Что показываем</legend>
+      <div class="seg" id="mode">
+        <button data-m="data" class="on">данные&nbsp;→&nbsp;проверки</button>
+        <button data-m="checks">проверки&nbsp;→&nbsp;проверки</button>
+      </div>
+      <p class="hint" id="modeHint"></p>
+    </fieldset>
+
+    <fieldset id="srcFs">
+      <legend>Источники данных</legend>
+      <div class="chips" id="fSrc"></div>
+      <div>
+        <button class="minibtn" id="srcAll">все</button>
+        <button class="minibtn" id="srcNoHubs">− универсальные</button>
+        <button class="minibtn" id="srcNone">убрать все</button>
+      </div>
+      <p class="hint">Двойной клик по источнику на полотне — оставить только его и зависящие проверки.</p>
+    </fieldset>
+
+    <fieldset><legend>Стадия</legend>
+      <div class="chips" id="fStage">
+        <span class="chip on" data-v="1">Стадия 1</span><span class="chip on" data-v="2">Стадия 2</span>
+        <span class="chip on" data-v="3">Стадия 3</span><span class="chip on" data-v="0">без стадии</span>
+      </div></fieldset>
+
+    <fieldset><legend>Готовность</legend>
+      <div class="chips" id="fReady">
+        <span class="chip on" data-v="код">код</span><span class="chip on" data-v="разработка">разработка</span>
+        <span class="chip on" data-v="аналитика">аналитика</span><span class="chip on" data-v="нет">нет</span>
+      </div></fieldset>
+
+    <fieldset><legend>Раздел (приложение 1423-ПП)</legend>
+      <div class="chips" id="fApp"></div></fieldset>
+
+    <fieldset><legend>Формат данных</legend>
+      <div class="chips" id="fFmt">
+        <span class="chip on" data-v="ifc">IFC</span><span class="chip on" data-v="xml">XML/ТЭП</span>
+        <span class="chip on" data-v="гпзу">ГПЗУ</span><span class="chip on" data-v="pdf">PDF</span>
+        <span class="chip on" data-v="dwg">DWG</span><span class="chip on" data-v="fbx">НПМ/ВПМ</span>
+        <span class="chip on" data-v="геодан">геоданные</span><span class="chip on" data-v="форма">заявление</span>
+      </div></fieldset>
+
+    <fieldset><legend>Тип и признаки</legend>
+      <label class="row"><input type="checkbox" id="tArch" checked> архитектурные (нормативные)</label>
+      <label class="row"><input type="checkbox" id="tTech" checked> технические</label>
+      <label class="row"><input type="checkbox" id="onlyPre"> только предпроверки</label>
+      <label class="row"><input type="checkbox" id="onlyIfc"> только «нужен результат IFC»</label>
+      <label class="row"><input type="checkbox" id="onlyAna"> только с файлом аналитики</label>
+    </fieldset>
+  </div>
+</aside>
+
+<main>
+  <div id="count"></div>
+  <button id="solo">✕ показать весь граф</button>
+  <div class="float" id="toolbar">
+    <button id="btnFit">К центру</button>
+    <button id="btnRelayout">Перестроить</button>
+    <button id="btnPng">PNG</button>
+    <span class="tbdiv"></span>
+    <label class="tbchk"><input type="checkbox" id="showCap" checked> подписи</label>
+    <label class="tbchk" id="isoRow"><input type="checkbox" id="hideIso" checked> без изолированных</label>
+    <span class="tbdiv"></span>
+    <div class="seg sm" id="dragMode" style="width:150px" title="Рамка: перетаскивание по пустому месту выделяет группу узлов. Выделенные узлы двигаются вместе.">
+      <button data-d="pan" class="on">панорама</button>
+      <button data-d="sel">рамка</button>
+    </div>
+    <span class="tbdiv"></span>
+    <div class="seg sm" id="spacing" style="width:190px">
+      <button data-s="0.8">плотно</button>
+      <button data-s="1" class="on">норма</button>
+      <button data-s="1.5">просторно</button>
+    </div>
+    <span class="tbdiv" id="chordDiv" style="display:none"></span>
+    <div class="seg sm" id="chordZoom" style="width:110px;display:none" title="Приближение круга (колесо мыши / перетаскивание тоже работают)">
+      <button data-z="out">−</button><button data-z="in">+</button>
+    </div>
+    <div class="seg sm" id="chordFont" style="width:110px;display:none" title="Размер подписей ГР-NN">
+      <button data-f="dn">A−</button><button data-f="up">A+</button>
+    </div>
+    <span class="tbdiv"></span>
+    <div class="seg sm" id="viewSel" style="width:132px">
+      <button data-v="graph" class="on">блоки</button>
+      <button data-v="chord">круг</button>
+    </div>
+  </div>
+  <div class="float" id="detail">
+    <div class="hd"><span class="x" id="dClose">✕</span><span class="id" id="dId"></span><div id="dName" style="color:var(--muted);font-size:12px"></div></div>
+    <div class="bd" id="dBody"></div>
+  </div>
+  <div class="float" id="legend"></div>
+  <div id="cy"></div>
+  <div id="chord"></div>
+</main>
+
+<script src="vendor/cytoscape.min.js"></script>
+<script src="vendor/dagre.min.js"></script>
+<script src="vendor/cytoscape-dagre.min.js"></script>
+<script src="vendor/layout-base.min.js"></script>
+<script src="vendor/cose-base.min.js"></script>
+<script src="vendor/cytoscape-fcose.min.js"></script>
+<script src="data.js"></script>
+<script>
+(function(){
+"use strict";
+var cyEl=document.getElementById('cy');
+if(!window.GRAPH_DATA){cyEl.innerHTML='<p style="padding:20px">Нет данные.js — запустите <code>python build.py</code>.</p>';return;}
+try{cytoscape.use(cytoscapeDagre);}catch(e){}
+try{cytoscape.use(cytoscapeFcose);}catch(e){}
+var G=window.GRAPH_DATA;
+function getcss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888';}
+document.getElementById('meta').textContent =
+  G.meta['проверок']+' проверок · '+G.meta['узлов_данных']+' источников · собрано '+G.meta['сгенерировано'];
+
+var GROUP_COL={заявление:'#8b5cf6',тэп:'#0ea5e9',гпзу:'#14b8a6',геоданные:'#22c55e',
+  ifc:'#f59e0b',модели:'#eab308',документы:'#64748b',внешние:'#ef4444',производные:'#ec4899','ifc-проверка':'#a855f7',нет:'#7d8595'};
+var HUB_SRC=['IFC_МОДЕЛЬ','КЛАССИФИКАТОР','ЗАЯВЛЕНИЕ','ТЭП'];
+// кружок-галочка для проверок, уже реализованных кодом
+var CHECK_BADGE='data:image/svg+xml;utf8,'+encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="9" fill="#1f9d55" stroke="#ffffff" stroke-width="1.5"/><path d="M5.6 10.4l2.8 2.8 5.8-6.2" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+
+var DATASRC=G.nodes.filter(n=>n.data.type==='data').map(n=>({id:n.data.id.replace('DATA:',''),label:n.data.label,group:n.data.group}));
+var srcMeta={}; DATASRC.forEach(s=>srcMeta[s.id]=s);
+srcMeta['IFC']={id:'IFC',label:'IFC-проверки',group:'ifc-проверка'};
+srcMeta['_none']={id:'_none',label:'без явного источника',group:'нет'};
+var srcLoad={};
+G.edges.forEach(function(e){
+  if(e.data.kind==='data'){var k=e.data.target.replace('DATA:','');srcLoad[k]=(srcLoad[k]||0)+1;}
+  if(e.data.kind==='ifc'){srcLoad['IFC']=(srcLoad['IFC']||0)+1;}
+});
+
+var APP_MAP=G.meta['приложения']||{};
+var fApp=document.getElementById('fApp');
+Object.keys(APP_MAP).forEach(function(sh){var s=document.createElement('span');s.className='chip on';s.dataset.v=APP_MAP[sh];s.textContent=sh;fApp.appendChild(s);});
+
+var hiddenSrc=new Set();
+var fSrc=document.getElementById('fSrc');
+DATASRC.concat([srcMeta['IFC']]).forEach(function(s){
+  var c=document.createElement('span');c.className='chip src';c.dataset.v=s.id;
+  var lab=s.label.replace(/\s*\(.*?\)\s*$/,''); c.textContent=lab.length>26?lab.slice(0,25).trim()+'…':lab; c.title=s.label;
+  fSrc.appendChild(c);
+});
+function paintSrcChips(){
+  fSrc.querySelectorAll('.chip').forEach(function(c){
+    var on=!hiddenSrc.has(c.dataset.v); c.classList.toggle('on',on);
+    c.style.background=on?(GROUP_COL[srcMeta[c.dataset.v].group]||'#64748b'):'';
+    c.style.borderColor=on?(GROUP_COL[srcMeta[c.dataset.v].group]||'#64748b'):'';
+  });
+}
+var FMT_PAT={ifc:/ifc|фc\/fbx/i,xml:/\bxml\b/i,'гпзу':/гпзу/i,pdf:/pdf/i,dwg:/dwg/i,fbx:/fbx|нпм|впм/i,'геодан':/геоданны/i,'форма':/электронн|заявлен/i};
+
+var cy=cytoscape({
+  container:cyEl, wheelSensitivity:.25,
+  boxSelectionEnabled:true, selectionType:'additive',
+  style:[
+    {selector:'node',style:{'label':'data(disp)','font-size':9,'color':getcss('--ink'),
+      'text-valign':'center','text-halign':'center','text-wrap':'wrap','text-max-width':86,'border-width':1.5,'border-color':'rgba(0,0,0,.18)'}},
+    {selector:'node[type="check"]',style:{'shape':'round-rectangle','width':'data(w)','height':'data(h)',
+      'background-color':getcss('--nodefill'),'color':getcss('--nodeink'),'font-weight':600,'font-size':'data(fs)'}},
+    {selector:'node[type="check"][?has_code]',style:{
+      'background-image':CHECK_BADGE,'background-image-containment':'over','background-clip':'none',
+      'background-width':'15px','background-height':'15px','background-position-x':'100%','background-position-y':'0%',
+      'bounds-expansion':8}},
+    {selector:'node[type="check"][?predproverka]',style:{'border-width':2.5,'border-color':'#f97316'}},
+    {selector:'node[type="data"]',style:{'shape':'round-diamond','width':'data(w)','height':'data(h)',
+      'background-color':function(n){return GROUP_COL[n.data('group')]||'#64748b';},'color':'#fff','font-size':10,'font-weight':700,
+      'border-width':2,'border-color':getcss('--ink')}},
+    {selector:'node[type="ifc"]',style:{'shape':'ellipse','width':'data(w)','height':'data(h)','background-color':'#a855f7','color':'#fff','font-size':9}},
+    {selector:'node[type="grp"]',style:{'shape':'round-rectangle','font-size':13,'font-weight':700,'padding':18,
+      'background-opacity':.07,'background-color':getcss('--accent'),'border-width':1,'border-style':'dashed',
+      'border-color':getcss('--muted'),'color':getcss('--muted'),'text-valign':'top','text-halign':'center','text-margin-y':-3}},
+    {selector:'edge',style:{'curve-style':'bezier','width':1,'line-color':getcss('--line'),'target-arrow-color':getcss('--line'),'target-arrow-shape':'triangle','arrow-scale':.8}},
+    {selector:'edge[kind="data"]',style:{'line-color':'#9aa3b2','opacity':.55,'width':1,
+      'target-arrow-shape':'none','source-arrow-shape':'triangle','source-arrow-color':'#9aa3b2','arrow-scale':.9}},
+    {selector:'edge[kind="ifc"]',style:{'line-color':'#a855f7','target-arrow-color':'#a855f7','line-style':'dashed'}},
+    {selector:'edge[kind="check"]',style:{'width':2,'line-color':'#64748b','target-arrow-color':'#64748b'}},
+    {selector:'edge[dtype="результат"]',style:{'width':3,'line-color':'#ef4444','target-arrow-color':'#ef4444'}},
+    {selector:'edge[dtype="предпроверка"]',style:{'width':2.5,'line-color':'#f97316','target-arrow-color':'#f97316'}},
+    {selector:'edge[dtype="переиспользование"]',style:{'line-color':'#0d9488','target-arrow-color':'#0d9488','line-style':'dashed'}},
+    {selector:'edge[dtype="вариант"]',style:{'line-color':'#94a3b8','target-arrow-color':'#94a3b8','line-style':'dotted'}},
+    {selector:'.dim',style:{'opacity':.06}},
+    {selector:'node:selected',style:{'border-width':4,'border-color':getcss('--accent'),'border-opacity':1,'overlay-opacity':0.12,'overlay-color':getcss('--accent')}},
+    {selector:'.hl',style:{'border-width':4,'border-color':getcss('--accent')}},
+    {selector:'.hlpath',style:{'opacity':1,'line-color':getcss('--accent'),'target-arrow-color':getcss('--accent'),
+      'source-arrow-color':getcss('--accent'),'width':3,'arrow-scale':1.1,'z-index':99}}
+  ]
+});
+// коробки-разделы (10 приложений 1423-ПП + «без приложения») — короткие названия из связи.yaml
+Object.keys(APP_MAP).forEach(function(sh){
+  cy.add({group:'nodes',data:{id:'APP:'+APP_MAP[sh],type:'grp',kind:'app',disp:sh,group:'документы'}});
+});
+G.nodes.forEach(function(n){ cy.add({group:'nodes',data:Object.assign({},n.data)}); });
+G.edges.forEach(function(e){ cy.add({group:'edges',data:Object.assign({},e.data)}); });
+
+var mode='data', SP=1, showCap=true, soloSrc=null, selId=null, viewMode='graph';
+// цвета секторов-разделов для кругового вида
+var APP_COL={'1':'#8891a5','2':'#3f7fb0','3':'#b06fae','4':'#6fae86','5':'#c98f5a','6':'#c76a6a',
+  '7':'#5aa5c9','8':'#c9a13a','9':'#7d6fc9','10':'#4fae9d','—':'#9aa2b1'};
+// компактные названия разделов для кругового вида (радиальные подписи)
+var APP_SHORT2={'1':'Заявление','2':'Общий свод ОКС','3':'Гостиницы','4':'Спорт','5':'Здравоохранение',
+  '6':'Торговля','7':'Образование','8':'Фасады к УДС','9':'Реновация','10':'Бюджет Москвы','—':'Без приложения'};
+var MODE_HINT={
+  checks:'Только зависимости проверок друг от друга (из модель/связи.yaml): что с чего тянется. Цвет ребра — тип связи.',
+  data:'Источники данных — слева, проверки — в коробках-разделах 1423-ПП справа. Связи не рисуются, пока не выбран узел: кликните источник или проверку, чтобы подсветить его связи. Двойной клик по источнику — оставить только его.'
+};
+
+function sizes(){
+  cy.batch(function(){
+    cy.nodes('[type="check"]').forEach(function(n){
+      var cap=n.data('caption')||'';
+      if(showCap && cap){ n.data('disp',n.data('label')+'\n'+cap); n.data('w',Math.max(96,8+cap.length*4.1)); n.data('h',34); n.data('fs',9); }
+      else { n.data('disp',n.data('label')); n.data('w',54); n.data('h',26); n.data('fs',10); }
+    });
+    cy.nodes('[type="data"]').forEach(function(n){ n.data('disp',n.data('label')); n.data('w',Math.max(80,n.data('label').length*4.6)); n.data('h',46); });
+    cy.nodes('[type="ifc"]').forEach(function(n){ n.data('disp',n.data('label')); n.data('w',50); n.data('h',32); });
+  });
+}
+function readChips(id){return Array.from(document.querySelectorAll('#'+id+' .chip.on')).map(c=>c.dataset.v);}
+function fmtMatch(node,allowed){
+  var f=(node.data('format')||'').toLowerCase(), deps=node.data('data_deps')||[]; var any=false,rec=false;
+  for(var k in FMT_PAT){ if(FMT_PAT[k].test(f)){rec=true; if(allowed.indexOf(k)>=0)any=true;} }
+  if(deps.indexOf('IFC_МОДЕЛЬ')>=0 && allowed.indexOf('ifc')>=0)any=true;
+  if(deps.indexOf('ЗАЯВЛЕНИЕ')>=0 && allowed.indexOf('форма')>=0)any=true;
+  return rec?any:true;
+}
+function visSrcOf(d){
+  var out=[]; (d.data_deps||[]).forEach(function(x){ if(!hiddenSrc.has(x)) out.push(x); });
+  if((d.ifc_deps||[]).length && !hiddenSrc.has('IFC')) out.push('IFC');
+  return out;
+}
+function primarySrc(d){                    // единственный «дом» проверки в раскладке по данным
+  var vs=visSrcOf(d);
+  if(!vs.length) return '_none';
+  var rank=function(a,b){ return (srcLoad[a]||0)-(srcLoad[b]||0) || a.localeCompare(b); };
+  var spec=vs.filter(x=>HUB_SRC.indexOf(x)<0 && x!=='IFC');
+  if(spec.length){ spec.sort(rank); return spec[0]; }
+  vs.sort(rank); return vs[0];
+}
+
+function apply(){
+  var stages=readChips('fStage'),ready=readChips('fReady'),appsOn=readChips('fApp'),fmts=readChips('fFmt');
+  var tArch=document.getElementById('tArch').checked,tTech=document.getElementById('tTech').checked;
+  var onlyPre=document.getElementById('onlyPre').checked,onlyIfc=document.getElementById('onlyIfc').checked,
+      onlyAna=document.getElementById('onlyAna').checked,hideIso=document.getElementById('hideIso').checked;
+  document.getElementById('srcFs').style.opacity = (mode==='data'||viewMode==='chord')?'1':'.4';
+  document.getElementById('isoRow').style.display = (mode==='checks'&&viewMode==='graph')?'flex':'none';
+
+  cy.batch(function(){
+    var visChk={};
+    cy.nodes('[type="check"]').forEach(function(n){
+      var d=n.data(), ok=true;
+      var st=(d.stages&&d.stages.length)?d.stages.map(String):['0'];
+      if(!st.some(s=>stages.indexOf(s)>=0)) ok=false;
+      if(ready.indexOf(d.gotovnost)<0) ok=false;
+      if(appsOn.indexOf(d.prilozhenie||'—')<0) ok=false;
+      var isTech=(d.tip||'').indexOf('техн')>=0;
+      if((isTech&&!tTech)||(!isTech&&!tArch)) ok=false;
+      if(onlyPre&&!d.predproverka) ok=false;
+      if(onlyIfc&&!d.nuzhen_ifc) ok=false;
+      if(onlyAna&&!d.analiz_file) ok=false;
+      if(ok&&!fmtMatch(n,fmts)) ok=false;
+      if(ok&&mode==='data'&&soloSrc&&visSrcOf(d).indexOf(soloSrc)<0) ok=false;
+      visChk[d.id]=ok; n._vis=ok;
+      n.style('display', ok?'element':'none');
+      // в режиме «данные → проверки» проверки лежат в коробках-разделах
+      var wp = (ok&&mode==='data') ? 'APP:'+(d.prilozhenie||'—') : null;
+      if((n.data('parent')||null)!==wp){ try{n.move({parent:wp});}catch(e){} }
+    });
+
+    cy.nodes('[type="data"]').forEach(function(n){
+      var sid=n.data('id').replace('DATA:','');
+      var vis = mode==='data' && !hiddenSrc.has(sid) && (!soloSrc||soloSrc===sid);
+      n.style('display', vis?'element':'none');
+    });
+    cy.nodes('[type="ifc"]').forEach(function(n){ n.style('display','none'); });
+
+    refreshEdges();
+
+    cy.nodes('[type="grp"][kind="app"]').forEach(function(p){
+      var kids=p.children().filter(k=>k.style('display')!=='none');
+      p.style('display',(mode==='data'&&kids.length)?'element':'none');
+    });
+
+    if(mode==='checks'&&hideIso){
+      cy.nodes('[type="check"]').forEach(function(n){
+        if(n.style('display')==='none')return;
+        var has=n.connectedEdges('[kind="check"]').some(e=>e.style('display')!=='none');
+        if(!has)n.style('display','none');
+      });
+    }
+  });
+  if(viewMode==='chord') drawChord(); else relayout();
+  updateCount();
+}
+
+// видимость рёбер. В режиме «данные → проверки» связи показываются только для
+// выбранного узла (selId) либо при изоляции источника (soloSrc).
+function refreshEdges(){
+  cy.batch(function(){
+    cy.edges().forEach(function(e){
+      var k=e.data('kind'), src=e.data('source'), tgt=e.data('target'), show=false;
+      if(mode==='checks'){
+        show = (k==='check') && cy.$id(src)._vis!==false && cy.$id(tgt)._vis!==false;
+      } else if(k==='data'){
+        var home=tgt.replace('DATA:',''), chkVis=cy.$id(src)._vis!==false;
+        if(chkVis && !hiddenSrc.has(home)){
+          if(soloSrc) show = (home===soloSrc);
+          else if(selId) show = (src===selId || tgt===selId);
+        }
+      }
+      e.style('display', show?'element':'none');
+    });
+  });
+}
+
+function updateCount(){
+  var nc=cy.nodes('[type="check"]').filter(n=>n.style('display')!=='none').length;
+  var ec=cy.edges().filter(e=>e.style('display')!=='none').length;
+  var t='видно: '+nc+' проверок';
+  if(viewMode==='chord'){
+    var ss=chordState.sels;
+    t += ' · '+(cy.nodes('[type="data"]').filter(n=>n.style('display')!=='none').length)+' источников';
+    if(!ss.length) t += ' · клик — выбрать, Ctrl+клик — несколько';
+    else if(ss.length===1){ var s=ss[0];
+      t += ' · '+(s.kind==='src'?srcMeta[s.id].label:(s.kind==='chk'?s.id:'раздел '+s.id)); }
+    else t += ' · выбрано: '+ss.length;
+    document.getElementById('count').textContent=t; return;
+  }
+  if(mode==='checks') t+=', '+ec+' связей';
+  else if(soloSrc) t+=' · только «'+srcMeta[soloSrc].label+'»';
+  else if(selId) t+=' · связи узла '+(byId[selId]?(byId[selId].label||selId):selId);
+  else t+=' · кликните узел, чтобы увидеть связи';
+  document.getElementById('count').textContent=t;
+}
+
+function relayout(){
+  var vis=cy.elements().filter(el=>el.style('display')!=='none');
+  if(vis.length===0){cy.fit();return;}
+  if(mode==='checks'){
+    try{ vis.layout({name:'dagre',rankDir:'LR',nodeSep:16*SP,rankSep:78*SP,edgeSep:8,animate:false}).run(); }
+    catch(e){ vis.layout({name:'cose',animate:false}).run(); }
+    cy.fit(vis,45); return;
+  }
+  if(soloSrc){ soloLayout(vis); return; }
+  structuredData(vis);
+}
+
+/* «данные → проверки»: источники — компактным кластером в ЦЕНТРЕ, коробки-разделы —
+   заквадраченными группами по кольцу вокруг. Стартовая расстановка; рёбра не рисуются. */
+function structuredData(vis){
+  var data=vis.filter('[type="data"]').sort(function(a,b){
+    return (a.data('group')||'').localeCompare(b.data('group')||'') || a.data('label').localeCompare(b.data('label'));
+  });
+  var boxes=vis.filter('[type="grp"][kind="app"]').sort(function(a,b){
+    var pa=parseInt(a.id().replace('APP:',''))||99, pb=parseInt(b.id().replace('APP:',''))||99; return pa-pb;
+  });
+  var pos={};
+  var cw=(showCap?176:110)*SP, rh=(showCap?35:26)*SP;
+
+  // --- центр: источники — КЛАСТЕРАМИ по типу; внутри кластера ромбы тессселируются ---
+  var GORDER=['заявление','тэп','гпзу','документы','ifc','модели','геоданные','производные','внешние'];
+  var byGrp={};
+  data.forEach(function(n){ var g=n.data('group')||'—'; (byGrp[g]=byGrp[g]||[]).push(n); });
+  var grpList=Object.keys(byGrp).sort(function(a,b){
+    var ia=GORDER.indexOf(a), ib=GORDER.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib) || a.localeCompare(b);
+  });
+  // ромбическая (checkerboard) решётка: ромбы стыкуются гранями
+  var ux=cw*0.5, uy=rh*0.92;
+  function clusterРel(k){
+    var cols=Math.max(1,Math.round(Math.sqrt(k))), raw=[];
+    for(var n=0;n<k;n++){ var i=n%cols, j=Math.floor(n/cols); raw.push([(i+j)*ux,(i-j)*uy]); }
+    var xs=raw.map(p=>p[0]), ys=raw.map(p=>p[1]);
+    var cx=(Math.min.apply(null,xs)+Math.max.apply(null,xs))/2,
+        cy=(Math.min.apply(null,ys)+Math.max.apply(null,ys))/2;
+    return raw.map(p=>[p[0]-cx,p[1]-cy]);
+  }
+  var gm=grpList.map(function(g){
+    var rel=clusterРel(byGrp[g].length);
+    var xs=rel.map(p=>p[0]), ys=rel.map(p=>p[1]);
+    return {items:byGrp[g], rel:rel,
+      w:(Math.max.apply(null,xs)-Math.min.apply(null,xs))+cw,
+      h:(Math.max.apply(null,ys)-Math.min.apply(null,ys))+rh};
+  });
+  // потоковая упаковка кластеров: шаг = собственная ширина кластера + маленький зазор
+  var gapX=20*SP, gapY=22*SP;
+  var gcols=Math.max(2,Math.round(Math.sqrt(gm.length)));
+  var rowTargetW=gm.reduce(function(s,o){return s+o.w+gapX;},0)/gcols;
+  var rows=[[]], rw=0;
+  gm.forEach(function(o){
+    if(rw>0 && rw+o.w>rowTargetW){ rows.push([]); rw=0; }
+    rows[rows.length-1].push(o); rw+=o.w+gapX;
+  });
+  var rowH=rows.map(function(rr){ return Math.max.apply(null,rr.map(o=>o.h)); });
+  var totalH=rowH.reduce(function(s,h){return s+h+gapY;},-gapY);
+  var y=-totalH/2;
+  rows.forEach(function(rr,ri){
+    var w=rr.reduce(function(s,o){return s+o.w+gapX;},-gapX);
+    var x=-w/2 + (ri%2?1:-1)*18*SP;                    // лёгкий «кирпичный» сдвиг рядов
+    rr.forEach(function(o){
+      var gx=x+o.w/2, gy=y+rowH[ri]/2;
+      o.items.forEach(function(nd,j){ pos[nd.id()]={ x:gx+o.rel[j][0], y:gy+o.rel[j][1] }; });
+      x+=o.w+gapX;
+    });
+    y+=rowH[ri]+gapY;
+  });
+  var r0=Math.hypot(rowTargetW*0.55, totalH*0.55);
+
+  // --- метрики коробок: сетка ближе к квадрату (мало колонок) ---
+  var meta=boxes.map(function(box){
+    var mem=box.children().filter(k=>k.style('display')!=='none').sort((a,b)=>(a.data('num')-b.data('num')));
+    var n=mem.length, sub=Math.max(1,Math.min(8,Math.round(Math.sqrt(n)*0.62)));
+    var rows=Math.ceil(n/sub);
+    return {mem:mem,n:n,sub:sub,rows:rows,w:sub*cw,h:(rows+1.7)*rh};
+  }).filter(m=>m.n>0);
+  if(!meta.length){ vis.layout({name:'preset',positions:pos,fit:true,padding:50}).run(); cy.fit(vis,50); return; }
+
+  // внутренний радиус кольца: растим, пока угловые "потребности" коробок не влезут в 2π
+  var mgn=8*SP, ringR=r0+18*SP, need2pi;
+  for(var it=0; it<8; it++){
+    var sum=0;
+    meta.forEach(function(m){
+      m.need = 2*Math.asin(Math.min(0.92,(m.w*0.5+mgn)/(ringR + m.h*0.28)));
+      sum += m.need;
+    });
+    need2pi=sum;
+    if(sum<=Math.PI*2*1.05) break;                  // допускаем небольшую тесноту, лишь бы ближе
+    ringR *= 1.08;
+  }
+  var scale = (Math.PI*2)/need2pi;                 // масштабируем доли, чтобы заполнить круг
+
+  var ang=-Math.PI*0.82;                            // старт — верхний-левый сектор
+  meta.forEach(function(m){
+    var slice=m.need*scale, mid=ang+slice/2;
+    var d=ringR + m.h*0.34;                         // внутренние края коробок ~ на одном радиусе
+    var bx=Math.cos(mid)*d, by=Math.sin(mid)*d;
+    m.mem.forEach(function(nd,j){
+      pos[nd.id()]={ x:bx - m.w/2 + cw/2 + (j%m.sub)*cw,
+                     y:by - m.h/2 + rh*1.55 + Math.floor(j/m.sub)*rh };
+    });
+    ang += slice;
+  });
+  vis.layout({name:'preset',positions:pos,fit:true,padding:40}).run();
+  cy.fit(vis,40);
+}
+/* один источник, зависящие проверки вокруг (двойной клик по источнику) */
+function soloLayout(vis){
+  try{
+    vis.layout({name:'fcose',quality:'proof',animate:false,randomize:true,
+      nodeDimensionsIncludeLabels:true,nodeSeparation:80*SP,
+      idealEdgeLength:120*SP,nodeRepulsion:12000,gravity:.3,numIter:2000}).run();
+  }catch(e){ vis.layout({name:'concentric',animate:false,concentric:n=>(n.data('type')==='check'?1:5),levelWidth:()=>1,minNodeSpacing:14*SP}).run(); }
+  cy.fit(vis,50);
+}
+
+/* =========================================================================
+   Альтернативный вид — круговая диаграмма связей (chord).
+   Сектор для источников данных + по сектору на каждый раздел 1423-ПП,
+   внутри — проверки; ленты = зависимости проверка→источник.
+   ========================================================================= */
+var SVGNS='http://www.w3.org/2000/svg';
+var chordState={sels:[], view:{scale:1,x:0,y:0}, fontIdx:1};
+var CHORD_FONTS=[6.3, 8.6, 11.4, 14.8, 19];
+function chordVB(){ var H0=430, v=chordState.view, H=H0/v.scale;
+  return (500-H+v.x)+' '+(500-H+v.y)+' '+(2*H)+' '+(2*H); }
+function chordApplyVB(){ var s=document.querySelector('#chord svg'); if(s) s.setAttribute('viewBox',chordVB()); }
+function chordZoom(f){ chordState.view.scale=Math.max(0.5,Math.min(4.5,chordState.view.scale*f)); chordApplyVB(); }
+function chordResetView(){ chordState.view={scale:1,x:0,y:0}; chordApplyVB(); }
+function chordFontStep(d){
+  chordState.fontIdx=Math.max(0,Math.min(CHORD_FONTS.length-1,chordState.fontIdx+d));
+  if(viewMode==='chord') drawChord();
+}
+function polar(cx,cy,r,a){ return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
+function arcPath(cx,cy,rIn,rOut,a0,a1){
+  var p0=polar(cx,cy,rOut,a0), p1=polar(cx,cy,rOut,a1), p2=polar(cx,cy,rIn,a1), p3=polar(cx,cy,rIn,a0);
+  var large=(a1-a0)>Math.PI?1:0;
+  return 'M'+p0[0]+' '+p0[1]+'A'+rOut+' '+rOut+' 0 '+large+' 1 '+p1[0]+' '+p1[1]+
+         'L'+p2[0]+' '+p2[1]+'A'+rIn+' '+rIn+' 0 '+large+' 0 '+p3[0]+' '+p3[1]+'Z';
+}
+function addRadialLabel(g,cx,cy,r,ang,text,size,bold){
+  var p=polar(cx,cy,r,ang), deg=ang*180/Math.PI, flip=(deg>90&&deg<270);
+  var t=document.createElementNS(SVGNS,'text');
+  t.setAttribute('x',p[0]);t.setAttribute('y',p[1]);t.setAttribute('font-size',size);
+  t.setAttribute('dominant-baseline','central');t.setAttribute('text-anchor',flip?'end':'start');
+  t.setAttribute('transform','rotate('+(flip?deg+180:deg)+' '+p[0]+' '+p[1]+')');
+  if(bold)t.setAttribute('font-weight','700');
+  t.textContent=text; g.appendChild(t); return t;
+}
+function addArcLabel(g,cx,cy,r,ang,text,size){
+  var p=polar(cx,cy,r,ang), deg=ang*180/Math.PI, flip=(deg>90&&deg<270);
+  var t=document.createElementNS(SVGNS,'text');
+  t.setAttribute('class','seclabel');t.setAttribute('x',p[0]);t.setAttribute('y',p[1]);
+  t.setAttribute('font-size',size);t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','central');
+  t.setAttribute('transform','rotate('+(flip?deg+90:deg-90)+' '+p[0]+' '+p[1]+')');
+  t.textContent=text; g.appendChild(t); return t;
+}
+function drawChord(){
+  var host=document.getElementById('chord'); host.innerHTML='';
+  var checks=cy.nodes('[type="check"]').filter(n=>n._vis).map(n=>n.data());
+  var srcIds=DATASRC.map(s=>s.id).filter(id=>!hiddenSrc.has(id));
+  if(soloSrc) srcIds=srcIds.filter(id=>id===soloSrc);
+  var srcSet=new Set(srcIds);
+  var links=[];
+  checks.forEach(function(d){ (d.data_deps||[]).forEach(function(x){ if(srcSet.has(x)) links.push([d.id,x]); }); });
+
+  var appsOrder=Object.keys(APP_MAP).map(sh=>APP_MAP[sh]).sort((a,b)=>(parseInt(a)||99)-(parseInt(b)||99));
+  var byApp={}; checks.forEach(function(d){ var a=d.prilozhenie||'—'; (byApp[a]=byApp[a]||[]).push(d); });
+  Object.keys(byApp).forEach(a=>byApp[a].sort((x,y)=>(x.num||0)-(y.num||0)));
+  var apps=appsOrder.filter(a=>(byApp[a]||[]).length);
+
+  var cx=500,cy2=500,R=300,ring=18,lp=6, secR=R+ring+40;
+  var svg=document.createElementNS(SVGNS,'svg'); svg.setAttribute('viewBox',chordVB()); host.appendChild(svg);
+  // приближение колесом + перетаскивание
+  svg.addEventListener('wheel',function(ev){ ev.preventDefault(); chordZoom(ev.deltaY<0?1.12:1/1.12); },{passive:false});
+  var drag=null, panMoved=false;
+  svg.addEventListener('pointerdown',function(ev){ if(ev.target.closest('.rib,[data-kind]'))return;
+    drag={x:ev.clientX,y:ev.clientY}; panMoved=false; svg.setPointerCapture(ev.pointerId); svg.style.cursor='grabbing'; });
+  svg.addEventListener('pointermove',function(ev){ if(!drag)return; panMoved=true;
+    var H=430/chordState.view.scale, k=2*H/svg.clientWidth;
+    chordState.view.x-=(ev.clientX-drag.x)*k; chordState.view.y-=(ev.clientY-drag.y)*k;
+    drag={x:ev.clientX,y:ev.clientY}; chordApplyVB(); });
+  svg.addEventListener('pointerup',function(ev){ drag=null; svg.style.cursor='grab'; });
+  var gRib=document.createElementNS(SVGNS,'g'); svg.appendChild(gRib);
+  var gArc=document.createElementNS(SVGNS,'g'); svg.appendChild(gArc);
+  var gLab=document.createElementNS(SVGNS,'g'); svg.appendChild(gLab);
+
+  var gGroup=0.03, nGroups=1+apps.length, span=Math.PI*2-gGroup*nGroups;
+  var srcShare=0.30, srcAng=span*srcShare, chkAng=span*(1-srcShare), chkCount=checks.length||1;
+  var pos={};
+  var a=-Math.PI/2+gGroup/2, srcSeg=srcIds.length?srcAng/srcIds.length:0, srcA0=a;
+  srcIds.forEach(function(id){ pos['DATA:'+id]={a0:a,a1:a+srcSeg,mid:a+srcSeg/2}; a+=srcSeg; });
+  var srcA1=a; a+=gGroup;
+  apps.forEach(function(app){
+    var mem=byApp[app], a0app=a, seg=(chkAng*(mem.length/chkCount))/mem.length;
+    mem.forEach(function(d){ pos[d.id]={a0:a,a1:a+seg,mid:a+seg/2,app:app}; a+=seg; });
+    pos['SEC:'+app]={a0:a0app,a1:a}; a+=gGroup;
+  });
+
+  links.forEach(function(l){
+    var pc=pos[l[0]], ps=pos['DATA:'+l[1]]; if(!pc||!ps) return;
+    var p1=polar(cx,cy2,R,pc.mid), p2=polar(cx,cy2,R,ps.mid);
+    var path=document.createElementNS(SVGNS,'path'); path.setAttribute('class','rib');
+    path.setAttribute('d','M'+p1[0]+' '+p1[1]+'Q '+cx+' '+cy2+' '+p2[0]+' '+p2[1]);
+    path.setAttribute('stroke',GROUP_COL[srcMeta[l[1]].group]||'#8aa');
+    path.setAttribute('stroke-width','0.7'); path.setAttribute('stroke-opacity','0.13');
+    path.dataset.chk=l[0]; path.dataset.src=l[1]; path.dataset.app=pc.app;
+    gRib.appendChild(path);
+  });
+
+  var mev=function(kind,id){ return function(ev){ ev.stopPropagation();
+    chordSelect(kind,id, ev.ctrlKey||ev.metaKey||ev.shiftKey); }; };
+
+  srcIds.forEach(function(id){
+    var p=pos['DATA:'+id];
+    var seg=document.createElementNS(SVGNS,'path');
+    seg.setAttribute('d',arcPath(cx,cy2,R,R+ring,p.a0+0.004,p.a1-0.004));
+    seg.setAttribute('fill',GROUP_COL[srcMeta[id].group]||'#8aa'); seg.style.cursor='pointer';
+    seg.dataset.kind='src'; seg.dataset.key=id; seg.onclick=mev('src',id);
+    var tt=document.createElementNS(SVGNS,'title'); tt.textContent=srcMeta[id].label; seg.appendChild(tt);
+    gArc.appendChild(seg);
+    var slab=srcMeta[id].label.replace(/\s*\(.*?\)\s*$/,'').replace(/ —.*/,'');
+    if(slab.length>22) slab=slab.slice(0,21).trim()+'…';
+    var sl=addRadialLabel(gLab,cx,cy2,R+ring+lp,p.mid,slab,9,true);
+    sl.style.cursor='pointer'; sl.dataset.kind='src'; sl.dataset.key=id; sl.onclick=mev('src',id);
+  });
+
+  apps.forEach(function(app){
+    var ps=pos['SEC:'+app];
+    var band=document.createElementNS(SVGNS,'path');
+    band.setAttribute('d',arcPath(cx,cy2,R,R+ring,ps.a0+0.004,ps.a1-0.004));
+    band.setAttribute('fill',APP_COL[app]||'#999'); band.setAttribute('fill-opacity','0.9'); band.style.cursor='pointer';
+    band.dataset.kind='app'; band.dataset.key=app; band.onclick=mev('app',app);
+    gArc.appendChild(band);
+    var secl=addRadialLabel(gLab,cx,cy2,secR,(ps.a0+ps.a1)/2,(APP_SHORT2[app]||('Прил. '+app)),11.5,true);
+    secl.setAttribute('class','seclabel'); secl.style.cursor='pointer';
+    secl.dataset.kind='app'; secl.dataset.key=app; secl.onclick=mev('app',app);
+    var fs=CHORD_FONTS[chordState.fontIdx];
+    byApp[app].forEach(function(d){
+      var p=pos[d.id], t0=polar(cx,cy2,R-2,p.mid), t1=polar(cx,cy2,R-9,p.mid);
+      var tick=document.createElementNS(SVGNS,'line');
+      tick.setAttribute('x1',t0[0]);tick.setAttribute('y1',t0[1]);tick.setAttribute('x2',t1[0]);tick.setAttribute('y2',t1[1]);
+      tick.setAttribute('stroke','currentColor');tick.setAttribute('stroke-width','0.6');tick.setAttribute('opacity','.5');
+      tick.style.cursor='pointer'; tick.dataset.kind='chk'; tick.dataset.key=d.id; tick.onclick=mev('chk',d.id);
+      var ttk=document.createElementNS(SVGNS,'title'); ttk.textContent=d.label+(d.caption?' — '+d.caption:''); tick.appendChild(ttk);
+      gArc.appendChild(tick);
+      if(showCap){
+        var lb=addRadialLabel(gLab,cx,cy2,R+ring+lp,p.mid,d.label.replace(/^ГР-?/i,''),fs,false);
+        lb.style.cursor='pointer'; lb.dataset.kind='chk'; lb.dataset.key=d.id; lb.onclick=mev('chk',d.id);
+        var tt=document.createElementNS(SVGNS,'title'); tt.textContent=d.label+(d.caption?' — '+d.caption:''); lb.appendChild(tt);
+      }
+    });
+  });
+
+  svg.addEventListener('click',function(ev){
+    if(panMoved){ panMoved=false; return; }
+    if(ev.target===svg||ev.target.tagName==='svg') chordSelect(null);
+  });
+  applyChordHighlight();
+}
+function chordSelect(kind,id,additive){
+  var sels=chordState.sels;
+  if(!kind){ chordState.sels=[]; }
+  else {
+    var i=sels.findIndex(s=>s.kind===kind&&s.id===id);
+    if(additive){ if(i>=0) sels.splice(i,1); else sels.push({kind:kind,id:id}); }
+    else { chordState.sels = (sels.length===1 && i===0) ? [] : [{kind:kind,id:id}]; }
+  }
+  applyChordHighlight();
+  var last=chordState.sels[chordState.sels.length-1];
+  if(last && last.kind==='src') openDetail(byId['DATA:'+last.id]);
+  else if(last && last.kind==='chk') openDetail(byId[last.id]);
+  else if(!last) document.getElementById('detail').classList.remove('show');
+  updateCount();
+}
+function applyChordHighlight(){
+  var host=document.getElementById('chord'); if(!host.firstChild) return;
+  var sels=chordState.sels, any=sels.length>0;
+  function hit(r){ return sels.some(function(s){
+    return (s.kind==='src'&&r.dataset.src===s.id) || (s.kind==='app'&&r.dataset.app===s.id) || (s.kind==='chk'&&r.dataset.chk===s.id); }); }
+  host.querySelectorAll('.rib').forEach(function(r){
+    var on=!any||hit(r);
+    r.setAttribute('stroke-opacity', any? (on?0.7:0.015) : 0.13);
+    r.setAttribute('stroke-width', any&&on?1.6:0.7);
+  });
+  host.querySelectorAll('[data-kind]').forEach(function(el){
+    var sel=sels.some(s=>s.kind===el.dataset.kind && s.id===el.dataset.key);
+    if(el.tagName==='text'){ el.setAttribute('fill', sel?getcss('--accent'):''); el.style.fontWeight=sel?'800':''; }
+    else { el.setAttribute('stroke', sel?getcss('--accent'):(el.dataset.kind==='chk'?'currentColor':'none'));
+           el.setAttribute('stroke-width', sel?2:(el.dataset.kind==='chk'?0.6:0)); }
+  });
+}
+function setView(v){
+  viewMode=v; chordState.sels=[]; selId=null;
+  if(v==='chord') chordState.view={scale:1,x:0,y:0};
+  document.querySelectorAll('#viewSel button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  document.getElementById('cy').style.display = v==='graph'?'':'none';
+  document.getElementById('chord').style.display = v==='chord'?'block':'none';
+  document.getElementById('legend').style.display = v==='graph'?'':'none';
+  ['btnRelayout','spacing','dragMode'].forEach(id=>document.getElementById(id).style.display = v==='graph'?'':'none');
+  ['chordZoom','chordFont','chordDiv'].forEach(id=>document.getElementById(id).style.display = v==='chord'?'':'none');
+  if(v==='graph') cy.resize();
+  apply();
+}
+
+/* ---- панель ---- */
+var byId={}; G.nodes.forEach(n=>byId[n.data.id]=n.data);
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function openDetail(d){
+  document.getElementById('detail').classList.add('show');
+  document.getElementById('dId').textContent=d.label+(d.caption?('  ·  '+d.caption):'');
+  document.getElementById('dName').textContent = d.type==='check'?(d.kriteriy||''):(d.type==='data'?'исходные данные — 2× клик по узлу изолирует':'IFC-проверка (предпосылка)');
+  var b=document.getElementById('dBody'); b.innerHTML='';
+  function h(t){var e=document.createElement('h4');e.textContent=t;b.appendChild(e);}
+  function kv(k,v){if(!v&&v!==0)return;var e=document.createElement('div');e.className='kv';e.innerHTML='<span>'+k+':</span> '+esc(v);b.appendChild(e);}
+  if(d.type==='data'){ kv('группа',d.group); kv('формат',d.format);
+    if(d.descr){h('описание');var p=document.createElement('div');p.textContent=d.descr;b.appendChild(p);}
+    consumers(d.id); return; }
+  if(d.type==='ifc'){ if(d.descr){h('что проверяет');var p=document.createElement('div');p.textContent=d.descr;b.appendChild(p);} consumers(d.id); return; }
+  kv('раздел',(d.pril_short||'')+(d.prilozhenie?'  ('+d.prilozhenie+')':''));
+  if(d.prilozhenie_name){var e=document.createElement('div');e.className='kv';e.style.cssText='color:var(--muted);font-size:11px';e.textContent=d.prilozhenie_name;b.appendChild(e);}
+  kv('№ критерия',d.nomer_kriteriya); kv('формат',d.format); kv('тип',d.tip);
+  kv('стадия',(d.stages&&d.stages.length)?d.stages.join(', '):'—'); kv('готовность',d.gotovnost);
+  kv('аналитика',(d.analitika||'—')+(d.otv_analitik?' · '+d.otv_analitik:''));
+  kv('разработка',(d.razrabotka||'—')+(d.otv_razrab?' · '+d.otv_razrab:''));
+  kv('срок',d.srok);
+  if(d.predproverka) kv('признак','предпроверка');
+  if(d.nuzhen_ifc) kv('признак','нужен результат IFC');
+  if(d.note){h('заметка');var pn=document.createElement('div');pn.textContent=d.note;b.appendChild(pn);}
+  if(d.algoritm){h('алгоритм ФЛК');var pa=document.createElement('div');pa.style.cssText='white-space:pre-wrap;color:var(--muted)';pa.textContent=d.algoritm;b.appendChild(pa);}
+  if(d.data_deps&&d.data_deps.length){h('исходные данные');
+    d.data_deps.forEach(function(x){var t=document.createElement('span');t.className='tag';t.style.cursor='pointer';t.textContent=(byId['DATA:'+x]||{}).label||x;t.onclick=function(){focusNode('DATA:'+x);};b.appendChild(t);});}
+  if(d.ifc_deps&&d.ifc_deps.length){h('нужны IFC-проверки');
+    d.ifc_deps.forEach(function(x){var t=document.createElement('span');t.className='tag';t.style.cursor='pointer';t.textContent=x;t.onclick=function(){focusNode('IFC:'+x);};b.appendChild(t);});}
+  if(d.check_deps&&d.check_deps.length){h('зависит от проверок');
+    d.check_deps.forEach(function(dep){var e=document.createElement('div');e.className='dep';var cap=(byId[dep['проверка']]||{}).caption||'';
+      e.innerHTML='<b>'+dep['проверка']+'</b> <span class="t">'+(cap?'('+esc(cap)+') ':'')+'— '+esc(dep['тип']||'')+'</span>'+(dep['примечание']?'<div class="t">'+esc(dep['примечание'])+'</div>':'');
+      e.querySelector('b').onclick=function(){focusNode(dep['проверка']);};b.appendChild(e);});}
+  var rev=G.edges.filter(e=>e.data.kind==='check'&&e.data.target===d.id);
+  if(rev.length){h('от неё зависят');
+    rev.forEach(function(e){var s=document.createElement('span');s.className='tag';s.style.cursor='pointer';var cap=(byId[e.data.source]||{}).caption||'';
+      s.textContent=e.data.source+(cap?(' · '+cap):'');s.onclick=function(){focusNode(e.data.source);};b.appendChild(s);});}
+  if(d.analiz_file){h('файл аналитики');var a=document.createElement('a');a.className='file';a.href='../../'+d.analiz_file.replace(/ /g,'%20');a.textContent=d.analiz_file;a.target='_blank';b.appendChild(a);}
+}
+function consumers(id){
+  var b=document.getElementById('dBody');
+  var list=G.edges.filter(x=>x.data.target===id);
+  var h=document.createElement('h4');h.textContent='используется в проверках ('+list.length+')';b.appendChild(h);
+  list.map(x=>x.data.source).sort((a,b2)=>(parseInt(a.replace('ГР-',''))||0)-(parseInt(b2.replace('ГР-',''))||0)).forEach(function(src){
+    var s=document.createElement('span');s.className='tag';s.style.cursor='pointer';var cap=(byId[src]||{}).caption||'';
+    s.textContent=src+(cap?(' · '+cap):'');s.onclick=function(){focusNode(src);};b.appendChild(s);});
+}
+function focusNode(id){
+  var n=cy.$id(id); if(n.empty())return;
+  if(n.style('display')==='none')n.style('display','element');
+  selId=id;
+  if(mode==='data' && !soloSrc){ refreshEdges(); updateCount(); }
+  cy.animate({center:{eles:n},zoom:Math.max(cy.zoom(),1.0)},{duration:220});
+  cy.elements().removeClass('hl hlpath');
+  var ce=n.connectedEdges().filter(e=>e.style('display')!=='none');
+  n.addClass('hl'); ce.addClass('hlpath'); ce.connectedNodes().addClass('hl');
+  openDetail(byId[id]);
+}
+function clearSel(){ selId=null; cy.elements().removeClass('hl hlpath');
+  if(mode==='data'&&!soloSrc){ refreshEdges(); updateCount(); } }
+cy.on('tap','node',function(ev){
+  var t=ev.target; if(t.data('type')==='grp')return;
+  var add=ev.originalEvent && (ev.originalEvent.shiftKey||ev.originalEvent.metaKey||ev.originalEvent.ctrlKey);
+  if(!add) cy.$(':selected').not(t).unselect();   // обычный клик — выбрать только этот узел
+  focusNode(t.id());
+});
+cy.on('dbltap','node[type="data"]',function(ev){
+  var sid=ev.target.data('id').replace('DATA:','');
+  soloSrc=(soloSrc===sid)?null:sid; selId=null;
+  document.getElementById('solo').style.display=soloSrc?'block':'none';
+  apply();
+});
+cy.on('tap',function(ev){ if(ev.target===cy){ cy.$(':selected').unselect(); clearSel(); } });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ cy.$(':selected').unselect(); clearSel(); } });
+document.getElementById('dClose').onclick=function(){document.getElementById('detail').classList.remove('show');clearSel();};
+document.querySelectorAll('#dragMode button').forEach(function(btn){
+  btn.onclick=function(){
+    document.querySelectorAll('#dragMode button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    var boxMode=btn.dataset.d==='sel';
+    cy.userPanningEnabled(!boxMode);          // «рамка»: тянем по фону → выделяем группу
+    cyEl.style.cursor=boxMode?'crosshair':'';
+  };
+});
+document.getElementById('solo').onclick=function(){soloSrc=null;selId=null;this.style.display='none';apply();};
+
+document.querySelectorAll('#mode button').forEach(function(btn){
+  btn.onclick=function(){document.querySelectorAll('#mode button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');mode=btn.dataset.m;soloSrc=null;selId=null;document.getElementById('solo').style.display='none';
+    document.getElementById('modeHint').textContent=MODE_HINT[mode];apply();};
+});
+document.getElementById('modeHint').textContent=MODE_HINT[mode];
+document.querySelectorAll('#viewSel button').forEach(function(btn){
+  btn.onclick=function(){ setView(btn.dataset.v); };
+});
+document.querySelectorAll('#chordZoom button').forEach(function(btn){
+  btn.onclick=function(){ chordZoom(btn.dataset.z==='in'?1.25:1/1.25); };
+});
+document.querySelectorAll('#chordFont button').forEach(function(btn){
+  btn.onclick=function(){ chordFontStep(btn.dataset.f==='up'?1:-1); };
+});
+document.querySelectorAll('#spacing button').forEach(function(btn){
+  btn.onclick=function(){document.querySelectorAll('#spacing button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');SP=parseFloat(btn.dataset.s);relayout();};
+});
+document.getElementById('showCap').addEventListener('change',function(e){
+  showCap=e.target.checked; sizes();
+  if(viewMode==='chord') drawChord(); else relayout();
+});
+fSrc.addEventListener('click',function(e){ if(!e.target.classList.contains('chip'))return;
+  var v=e.target.dataset.v; if(hiddenSrc.has(v))hiddenSrc.delete(v); else hiddenSrc.add(v);
+  if(soloSrc&&hiddenSrc.has(soloSrc)){soloSrc=null;document.getElementById('solo').style.display='none';}
+  paintSrcChips(); apply();
+});
+document.getElementById('srcAll').onclick=function(){hiddenSrc.clear();paintSrcChips();apply();};
+document.getElementById('srcNoHubs').onclick=function(){hiddenSrc=new Set(HUB_SRC);paintSrcChips();apply();};
+document.getElementById('srcNone').onclick=function(){hiddenSrc=new Set(Object.keys(srcMeta).filter(x=>x!=='_none'));paintSrcChips();apply();};
+document.querySelectorAll('.chips').forEach(function(box){ if(box.id==='fSrc')return;
+  box.addEventListener('click',function(e){ if(e.target.classList.contains('chip')){e.target.classList.toggle('on');apply();}});
+});
+['tArch','tTech','onlyPre','onlyIfc','onlyAna','hideIso'].forEach(id=>document.getElementById(id).addEventListener('change',apply));
+document.getElementById('btnFit').onclick=function(){
+  if(viewMode==='chord'){ chordResetView(); return; }
+  cy.fit(cy.elements().filter(el=>el.style('display')!=='none'),45);
+};
+document.getElementById('btnRelayout').onclick=relayout;
+document.getElementById('btnPng').onclick=function(){
+  if(viewMode==='chord'){
+    var svg=document.querySelector('#chord svg'); if(!svg)return;
+    var s=new XMLSerializer().serializeToString(svg);
+    s='<?xml version="1.0" encoding="UTF-8"?>\n'+s.replace('<svg ','<svg xmlns="http://www.w3.org/2000/svg" style="background:'+getcss('--bg')+'" ');
+    var a=document.createElement('a');
+    a.href='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s);
+    a.download='граф-ГР-круг.svg'; a.click(); return;
+  }
+  var png=cy.png({full:true,scale:2,bg:getcss('--bg')});
+  var a=document.createElement('a');a.href=png;a.download='граф-ГР-'+mode+'.png';a.click();
+};
+var qT;
+document.getElementById('q').addEventListener('input',function(e){
+  clearTimeout(qT); var v=e.target.value.trim().toLowerCase();
+  qT=setTimeout(function(){
+    cy.elements().removeClass('hl');
+    if(!v){cy.elements().removeClass('dim');return;}
+    var hit=cy.nodes().filter(function(n){ if(n.style('display')==='none')return false; var d=n.data();
+      return ['id','label','caption','kriteriy','descr','pril_short'].some(k=>d[k]&&String(d[k]).toLowerCase().indexOf(v)>=0); });
+    cy.elements().addClass('dim'); hit.removeClass('dim').addClass('hl'); hit.connectedEdges().removeClass('dim');
+    if(hit.length)cy.animate({fit:{eles:hit,padding:60}},{duration:220});
+  },200);
+});
+
+(function(){
+  var L=document.getElementById('legend');
+  var grp=['заявление','тэп','гпзу','геоданные','ifc','модели','документы','внешние','производные']
+    .map(k=>'<span class="k"><span class="sw" style="background:'+GROUP_COL[k]+'"></span>'+k+'</span>').join('');
+  L.innerHTML='<span class="tgl" id="legTgl">условные обозначения ▾</span><div class="body">'+
+    '<b>Проверки</b><span class="k"><span class="sw" style="background:var(--nodefill)"></span>ГР-проверка</span>'+
+    '<span class="k">✓&nbsp;— уже реализована кодом</span>'+
+    '<span class="k"><span class="sw" style="background:transparent;border:2px solid #f97316"></span>предпроверка</span>'+
+    '<b>Источники — по группе</b>'+grp+
+    '<b>Режим «данные → проверки»</b>'+
+    '<span class="k">пунктирная рамка — раздел 1423-ПП</span>'+
+    '<span class="k">связи (источник ▸ проверка) — по клику на узел</span>'+
+    '<b>Связи проверок (режим «проверки → проверки»)</b>'+
+    '<span class="k"><span class="sw" style="background:#ef4444"></span>результат</span>'+
+    '<span class="k"><span class="sw" style="background:#f97316"></span>предпроверка</span>'+
+    '<span class="k"><span class="sw" style="background:#0d9488"></span>переиспользование</span>'+
+    '<span class="k"><span class="sw" style="background:#94a3b8"></span>вариант / родственная</span></div>';
+  document.getElementById('legTgl').onclick=function(){L.classList.toggle('min');this.textContent='условные обозначения '+(L.classList.contains('min')?'▸':'▾');};
+})();
+
+paintSrcChips(); sizes(); apply();
+setTimeout(function(){ cy.resize(); cy.fit(cy.elements().filter(el=>el.style('display')!=='none'),45); },120);
+window.addEventListener('resize',function(){ cy.resize(); });
+})();
+</script>
+</body>
+</html>
